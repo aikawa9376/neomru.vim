@@ -48,6 +48,9 @@ call neomru#set_default(
       \ 'g:neomru#file_mru_path',
       \ s:substitute_path_separator(s:base.'/file'))
 call neomru#set_default(
+      \ 'g:neomru#file_mrw_path',
+      \ s:substitute_path_separator(s:base.'/write'))
+call neomru#set_default(
       \ 'g:neomru#file_mru_limit',
       \ 1000, 'g:unite_source_file_mru_limit')
 call neomru#set_default(
@@ -255,6 +258,20 @@ endfunction
 
 
 
+" File MRW:  2
+"
+let s:file_mrw = extend(deepcopy(s:mru), {
+      \ 'type'          : 'file',
+      \ 'mru_file'      : s:expand(g:neomru#file_mrw_path),
+      \ 'limit'         : g:neomru#file_mru_limit,
+      \ }
+      \)
+function! s:file_mrw.validate() abort
+  if self.do_validate
+    call filter(self.candidates, 's:is_file_exist(v:val)')
+  endif
+endfunction
+
 " File MRU:  2
 "
 let s:file_mru = extend(deepcopy(s:mru), {
@@ -288,6 +305,7 @@ endfunction
 
 let s:MRUs.file = s:file_mru
 let s:MRUs.directory = s:directory_mru
+let s:MRUs.write = s:file_mrw
 function! neomru#init() abort
 endfunction
 function! neomru#_import_file(path) abort
@@ -318,11 +336,15 @@ endfunction
 function! neomru#_get_mrus() abort
   return s:MRUs
 endfunction
-function! neomru#_append() abort
+function! neomru#_append(flag) abort
   if &l:buftype =~ 'help\|nofile' || &l:previewwindow
     return
   endif
-  call neomru#append(s:expand('%:p'))
+  if a:flag == 'write'
+    call neomru#wappend(s:expand('%:p'))
+  else
+    call neomru#append(s:expand('%:p'))
+  endif
 endfunction
 function! neomru#_gather_file_candidates() abort
   return neomru#_get_mrus().file.gather_candidates([], {'is_redraw': 0})
@@ -362,6 +384,19 @@ function! neomru#append(filename) abort
   if s:is_directory_exist(path)
     call s:directory_mru.append(path)
   endif
+endfunction
+function! neomru#wappend(filename) abort
+  let path = s:fnamemodify(a:filename, ':p')
+  if path !~ '\a\+:'
+    let path = s:substitute_path_separator(
+          \ simplify(s:resolve(path)))
+  endif
+
+  " Append the current buffer to the mru list.
+  if s:is_file_exist(path)
+    call s:file_mrw.append(path)
+  endif
+
 endfunction
 function! neomru#_reload() abort
   for m in values(s:MRUs)
